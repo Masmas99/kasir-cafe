@@ -255,6 +255,22 @@ new #[Layout('layouts.app')] #[Title('Pesanan Manual')] class extends Component
             return;
         }
 
+        if ($payment->payment_url === null && ! empty($payment->payload['token'])) {
+            try {
+                $result = $midtransClient->createQrisCharge($payment);
+                $payment->update([
+                    'payment_url' => $result['qr_url'],
+                    'payload' => array_merge($payment->payload ?? [], $result['response'], [
+                        'qr_string' => $result['qr_string'],
+                        'qr_url' => $result['qr_url'],
+                    ]),
+                ]);
+                $payment->refresh();
+            } catch (\Throwable) {
+                // Ignore transient network errors during poll
+            }
+        }
+
         $remoteStatus = $midtransClient->getTransactionStatus($payment->invoice_number);
 
         if ($remoteStatus !== null) {
@@ -356,7 +372,13 @@ new #[Layout('layouts.app')] #[Title('Pesanan Manual')] class extends Component
 
         @if ($step === 'qris' && $activePayment)
             <!-- STEP 2A: TAMPILAN PEMBAYARAN QRIS MIDTRANS -->
-            <div wire:poll.3s="checkQrisStatus" class="mx-auto max-w-md">
+            <div
+                wire:poll.2s.keep-alive="checkQrisStatus"
+                x-data
+                x-on:focus.window="$wire.checkQrisStatus()"
+                x-on:visibilitychange.window="if (!document.hidden) $wire.checkQrisStatus()"
+                class="mx-auto max-w-md"
+            >
                 <x-card class="p-6 text-center space-y-5">
                     <div class="flex items-center justify-between border-b border-gray-200 pb-3 dark:border-gray-700">
                         <div class="text-left">
@@ -377,28 +399,43 @@ new #[Layout('layouts.app')] #[Title('Pesanan Manual')] class extends Component
                     </div>
 
                     <div class="mx-auto flex w-fit flex-col items-center rounded-2xl border-2 border-gray-900 bg-white p-5 shadow-sm">
-                        @if (! empty($activePayment->payload['qr_string']))
-                            {!! SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->generate($activePayment->payload['qr_string']) !!}
-                        @elseif ($activePayment->payment_url)
+                        @if ($activePayment->payment_url)
                             <img src="{{ $activePayment->payment_url }}" alt="QRIS Midtrans" class="h-56 w-56 object-contain" />
+                        @elseif (! empty($activePayment->payload['qr_string']))
+                            {!! SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')->size(220)->margin(1)->generate($activePayment->payload['qr_string']) !!}
                         @endif
                         <p class="mt-2 text-xs font-bold tracking-widest text-gray-800">SCAN QRIS UNTUK MEMBAYAR</p>
                     </div>
+
+                    @if ($isSandbox && ($activePayment->payment_url || ! empty($activePayment->payload['qris_url'])))
+                        @php($qrisImageUrl = $activePayment->payment_url ?? $activePayment->payload['qris_url'])
+                        <div class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-left text-xs dark:border-amber-500/30 dark:bg-amber-500/10">
+                            <p class="font-bold text-amber-900 dark:text-amber-300">Panduan Uji Coba Simulator Midtrans Sandbox:</p>
+                            <ol class="mt-1 list-decimal space-y-1 ps-4 text-[11px] text-amber-800 dark:text-amber-200">
+                                <li>Salin <strong>QR Code Image URL</strong> di bawah ini (atau klik kanan gambar QRIS &rarr; <em>Copy image address</em>):</li>
+                            </ol>
+                            <input
+                                type="text"
+                                readonly
+                                value="{{ $qrisImageUrl }}"
+                                onclick="this.select()"
+                                class="mt-1.5 w-full rounded-lg border border-amber-300 bg-white px-2.5 py-1.5 font-mono text-[11px] text-gray-800"
+                            />
+                            <a
+                                href="https://simulator.sandbox.midtrans.com/v2/qris/index"
+                                target="_blank"
+                                class="mt-2 block w-full rounded-lg bg-amber-600 px-3 py-2 text-center text-[11px] font-bold uppercase tracking-wider text-white hover:bg-amber-500"
+                            >
+                                Buka Simulator QRIS v2 Midtrans &rarr; Tempel URL &amp; Klik Pay
+                            </a>
+                        </div>
+                    @endif
 
                     <p class="text-xs text-gray-500 dark:text-gray-400">
                         Halaman ini otomatis memeriksa status pembayaran setiap beberapa detik dan akan langsung menampilkan struk begitu lunas.
                     </p>
 
                     <div class="space-y-2 pt-2">
-                        @if (! empty($activePayment->payload['snap_redirect_url']))
-                            <a
-                                href="{{ $activePayment->payload['snap_redirect_url'] }}"
-                                target="_blank"
-                                class="block w-full rounded-xl border border-brand-600 bg-brand-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-brand-700 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-300"
-                            >
-                                Buka Halaman Pembayaran Midtrans
-                            </a>
-                        @endif
                         <button
                             type="button"
                             wire:click="checkQrisStatus"

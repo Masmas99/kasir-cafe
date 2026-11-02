@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Facades\Storage;
 
 #[Fillable(['category_id', 'name', 'description', 'price', 'image_path', 'is_available'])]
 class MenuItem extends Model
@@ -57,6 +56,16 @@ class MenuItem extends Model
      */
     protected function imageUrl(): Attribute
     {
-        return Attribute::get(fn (): ?string => $this->image_path ? Storage::disk('public')->url($this->image_path) : null);
+        return Attribute::get(function (): ?string {
+            if (! $this->image_path) {
+                return null;
+            }
+
+            if (str_starts_with($this->image_path, 'http://') || str_starts_with($this->image_path, 'https://')) {
+                return $this->image_path;
+            }
+
+            return '/storage/'.ltrim($this->image_path, '/');
+        });
     }
 }

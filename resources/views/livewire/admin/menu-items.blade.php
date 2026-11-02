@@ -82,7 +82,7 @@ new #[Layout('layouts.app')] #[Title('Menu')] class extends Component
             'description' => ['nullable', 'string', 'max:1000'],
             'price' => ['required', 'integer', 'min:0', 'max:100000000'],
             'is_available' => ['boolean'],
-            'image' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'image' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,gif,svg', 'max:5120'],
         ]);
 
         $menuItem = $this->editingId ? MenuItem::findOrFail($this->editingId) : new MenuItem;

@@ -11,13 +11,13 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600,700&display=swap" rel="stylesheet" />
 
-        <x-theme-script theme="system" />
+        <x-theme-script :theme="auth()->user()?->theme?->value ?? 'system'" />
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="font-sans antialiased bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100">
-        <div class="mx-auto min-h-screen max-w-lg bg-white shadow-sm dark:bg-gray-900">
+    <body class="font-sans antialiased bg-gray-100 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
+        <div class="mx-auto min-h-screen max-w-lg bg-white shadow-sm dark:border-x dark:border-gray-800 dark:bg-gray-900">
             {{ $slot }}
         </div>
     </body>

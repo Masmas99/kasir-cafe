@@ -50,8 +50,34 @@ class CreateMidtransQrisPayment
                 ->latest('id')
                 ->first();
 
-            if ($existingPending !== null && ! empty($existingPending->payload['qr_string'])) {
-                return $existingPending;
+            if (
+                $existingPending !== null
+                && ! empty($existingPending->payload['qr_string'])
+                && ! str_starts_with((string) $existingPending->payload['qr_string'], 'http')
+            ) {
+                $remoteStatus = $midtransClient->getTransactionStatus($existingPending->invoice_number);
+
+                if ($remoteStatus !== null) {
+                    $txStatus = strtolower((string) ($remoteStatus['transaction_status'] ?? ''));
+                    $fraudStatus = strtolower((string) ($remoteStatus['fraud_status'] ?? 'accept'));
+
+                    if ($txStatus === 'settlement' || ($txStatus === 'capture' && $fraudStatus === 'accept')) {
+                        return app(CompleteMidtransPayment::class)->handle(
+                            $existingPending,
+                            $remoteStatus,
+                            (string) ($remoteStatus['transaction_id'] ?? $existingPending->invoice_number),
+                        );
+                    }
+
+                    if (in_array($txStatus, ['expire', 'cancel', 'deny', 'failure'], true)) {
+                        $existingPending->update(['status' => PaymentStatus::Failed]);
+                        $existingPending = null;
+                    }
+                }
+
+                if ($existingPending !== null) {
+                    return $existingPending;
+                }
             }
 
             $payment = Payment::create([

@@ -84,7 +84,7 @@ class MidtransClient
     }
 
     /**
-     * Create a Midtrans Snap transaction and return its payment link as the scannable QR payload.
+     * Create a Midtrans Snap transaction and charge QRIS on the Snap token so a real QRIS payload and image URL are generated.
      *
      * @return array{qr_string: string, qr_url: string|null, response: array<string, mixed>}
      */
@@ -94,36 +94,74 @@ class MidtransClient
             ? (string) config('midtrans.production_snap_url')
             : (string) config('midtrans.sandbox_snap_url');
 
-        $snapResponse = Http::withBasicAuth($serverKey, '')
-            ->acceptJson()
-            ->asJson()
-            ->timeout(15)
-            ->post($snapUrl, [
-                'transaction_details' => [
-                    'order_id' => $payment->invoice_number,
-                    'gross_amount' => $payment->amount,
-                ],
-            ]);
+        $existingToken = (string) ($payment->payload['token'] ?? '');
+        $existingRedirectUrl = (string) ($payment->payload['redirect_url'] ?? $payment->payload['snap_redirect_url'] ?? '');
 
-        if (! $snapResponse->successful()) {
-            throw new RuntimeException('Gagal menghubungi layanan pembayaran Midtrans.');
+        if ($existingToken !== '') {
+            $snapData = [
+                'token' => $existingToken,
+                'redirect_url' => $existingRedirectUrl,
+            ];
+            $token = $existingToken;
+            $redirectUrl = $existingRedirectUrl;
+        } else {
+            $snapResponse = Http::withBasicAuth($serverKey, '')
+                ->acceptJson()
+                ->asJson()
+                ->timeout(15)
+                ->post($snapUrl, [
+                    'transaction_details' => [
+                        'order_id' => $payment->invoice_number,
+                        'gross_amount' => $payment->amount,
+                    ],
+                ]);
+
+            if (! $snapResponse->successful()) {
+                throw new RuntimeException('Gagal menghubungi layanan pembayaran Midtrans.');
+            }
+
+            /** @var array<string, mixed> $snapData */
+            $snapData = $snapResponse->json() ?? [];
+            $token = (string) ($snapData['token'] ?? '');
+            $redirectUrl = (string) ($snapData['redirect_url'] ?? '');
         }
 
-        /** @var array<string, mixed> $snapData */
-        $snapData = $snapResponse->json() ?? [];
-        $redirectUrl = (string) ($snapData['redirect_url'] ?? '');
-
-        if ($redirectUrl === '') {
+        if ($redirectUrl === '' && $token === '') {
             throw new RuntimeException('URL pembayaran Midtrans tidak ditemukan.');
         }
 
+        $payData = [];
+        $qrString = '';
+        $qrisUrl = '';
+
+        if ($token !== '') {
+            $payResponse = Http::withBasicAuth($serverKey, '')
+                ->acceptJson()
+                ->asJson()
+                ->timeout(15)
+                ->post(rtrim($snapUrl, '/').'/'.$token.'/pay', [
+                    'payment_type' => 'qris',
+                    'payment_params' => [
+                        'acquirer' => ['gopay'],
+                    ],
+                ]);
+
+            if ($payResponse->successful()) {
+                /** @var array<string, mixed> $payData */
+                $payData = $payResponse->json() ?? [];
+                $qrString = (string) ($payData['qr_string'] ?? '');
+                $qrisUrl = (string) ($payData['qris_url'] ?? '');
+            }
+        }
+
         return [
-            'qr_string' => $redirectUrl,
-            'qr_url' => null,
-            'response' => array_merge($snapData, [
+            'qr_string' => $qrString !== '' ? $qrString : $redirectUrl,
+            'qr_url' => $qrisUrl !== '' ? $qrisUrl : null,
+            'response' => array_merge($snapData, $payData, [
                 'order_id' => $payment->invoice_number,
                 'gross_amount' => (string) $payment->amount,
                 'snap_redirect_url' => $redirectUrl,
+                'qris_url' => $qrisUrl !== '' ? $qrisUrl : null,
             ]),
         ];
     }

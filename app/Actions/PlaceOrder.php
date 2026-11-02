@@ -25,15 +25,20 @@ class PlaceOrder
      * @throws TableNotAcceptingOrdersException
      * @throws ValidationException
      */
-    public function handle(DiningTable $diningTable, array $items, ?User $placedBy = null): Order
-    {
+    public function handle(
+        DiningTable $diningTable,
+        array $items,
+        ?User $placedBy = null,
+        ?string $customerName = null,
+        ?string $customerPhone = null,
+    ): Order {
         if ($items === []) {
             throw ValidationException::withMessages([
                 'items' => 'Keranjang pesanan tidak boleh kosong.',
             ]);
         }
 
-        return DB::transaction(function () use ($diningTable, $items, $placedBy): Order {
+        return DB::transaction(function () use ($diningTable, $items, $placedBy, $customerName, $customerPhone): Order {
             /** @var DiningTable $lockedTable */
             $lockedTable = DiningTable::query()->lockForUpdate()->findOrFail($diningTable->id);
 
@@ -48,13 +53,23 @@ class PlaceOrder
                 $session = null;
             }
 
+            $cleanName = $customerName !== null && trim($customerName) !== '' ? trim($customerName) : null;
+            $cleanPhone = $customerPhone !== null && trim($customerPhone) !== '' ? trim($customerPhone) : null;
+
             if ($session === null) {
                 $session = TableSession::create([
                     'dining_table_id' => $lockedTable->id,
+                    'customer_name' => $cleanName,
+                    'customer_phone' => $cleanPhone,
                     'payment_status' => PaymentStatus::Unpaid,
                     'total_amount' => 0,
                     'opened_at' => now(),
                 ]);
+            } elseif ($cleanName !== null || $cleanPhone !== null) {
+                $session->update(array_filter([
+                    'customer_name' => $cleanName ?? $session->customer_name,
+                    'customer_phone' => $cleanPhone ?? $session->customer_phone,
+                ], fn ($v) => $v !== null));
             }
 
             if ($lockedTable->status !== TableStatus::Occupied) {
@@ -113,6 +128,8 @@ class PlaceOrder
                 'table_session_id' => $session->id,
                 'dining_table_id' => $lockedTable->id,
                 'placed_by_user_id' => $placedBy?->id,
+                'customer_name' => $cleanName ?? $session->customer_name,
+                'customer_phone' => $cleanPhone ?? $session->customer_phone,
                 'source' => $placedBy !== null ? 'cashier' : 'qr',
                 'status' => OrderStatus::Pending,
                 'total_amount' => $orderTotal,

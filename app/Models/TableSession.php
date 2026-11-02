@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
-#[Fillable(['dining_table_id', 'token', 'payment_status', 'total_amount', 'opened_at', 'paid_at', 'closed_at', 'closed_by'])]
+#[Fillable(['dining_table_id', 'token', 'customer_name', 'customer_phone', 'payment_status', 'total_amount', 'opened_at', 'paid_at', 'closed_at', 'closed_by'])]
 class TableSession extends Model
 {
     /** @use HasFactory<TableSessionFactory> */

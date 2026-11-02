@@ -71,13 +71,16 @@ new class extends Component
 
 <div x-data="{ open: false }" x-on:keydown.escape.window="open = false">
     <!-- Mobile Top Bar -->
-    <div class="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
-        <button type="button" x-on:click="open = true" class="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" aria-label="Buka menu">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-        </button>
-        <span class="font-semibold text-gray-800 dark:text-gray-100">{{ config('app.name') }}</span>
+    <div class="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 dark:border-gray-700 dark:bg-gray-800 lg:hidden">
+        <div class="flex items-center gap-3">
+            <button type="button" x-on:click="open = true" class="rounded-md p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" aria-label="Buka menu">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+            <span class="font-semibold text-gray-800 dark:text-gray-100">{{ config('app.name') }}</span>
+        </div>
+        <x-theme-toggle />
     </div>
 
     <!-- Mobile Backdrop -->
@@ -122,10 +125,13 @@ new class extends Component
             @endforeach
         </nav>
 
-        <div class="shrink-0 border-t border-gray-200 p-3 dark:border-gray-700">
-            <div class="px-3 pb-3">
-                <div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100" x-data="{{ json_encode(['name' => auth()->user()->name]) }}" x-text="name" x-on:profile-updated.window="name = $event.detail.name"></div>
-                <div class="truncate text-xs text-gray-500 dark:text-gray-400">{{ auth()->user()->role->label() }}</div>
+        <div class="shrink-0 space-y-1 border-t border-gray-200 p-3 dark:border-gray-700">
+            <div class="flex items-center justify-between gap-2 px-3 pb-2">
+                <div class="min-w-0">
+                    <div class="truncate text-sm font-medium text-gray-800 dark:text-gray-100" x-data="{{ json_encode(['name' => auth()->user()->name]) }}" x-text="name" x-on:profile-updated.window="name = $event.detail.name"></div>
+                    <div class="truncate text-xs text-gray-500 dark:text-gray-400">{{ auth()->user()->role->label() }}</div>
+                </div>
+                <x-theme-toggle />
             </div>
             <a href="{{ route('profile') }}" wire:navigate class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
                 <x-icon name="user" />

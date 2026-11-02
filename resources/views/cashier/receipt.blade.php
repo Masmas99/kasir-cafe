@@ -15,6 +15,14 @@
             <div class="border-b border-dashed border-gray-400 pb-3 text-center">
                 <h1 class="text-base font-bold uppercase">{{ config('app.name') }}</h1>
                 <p class="text-xs text-gray-600">{{ $session->diningTable->name }} &bull; {{ $session->opened_at->format('d/m/Y H:i') }}</p>
+                @if ($session->customer_name)
+                    <p class="mt-1 text-xs text-gray-700">
+                        Pemesan: {{ $session->customer_name }}
+                        @if ($session->customer_phone)
+                            ({{ $session->customer_phone }})
+                        @endif
+                    </p>
+                @endif
             </div>
 
             <div class="divide-y divide-dashed divide-gray-300 py-3 text-xs">

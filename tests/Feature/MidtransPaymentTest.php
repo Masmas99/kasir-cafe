@@ -78,6 +78,48 @@ class MidtransPaymentTest extends TestCase
         $this->assertSame(PaymentStatus::Pending, $session->refresh()->payment_status);
     }
 
+    public function test_falls_back_to_snap_qris_charge_when_core_api_channel_is_not_activated(): void
+    {
+        Http::fake([
+            'https://api.sandbox.midtrans.com/v2/charge' => Http::response([
+                'status_code' => '402',
+                'status_message' => 'Payment channel is not activated.',
+            ], 200),
+            'https://app.sandbox.midtrans.com/snap/v1/transactions' => Http::response([
+                'token' => 'snap-token-123',
+                'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v4/redirection/snap-token-123',
+            ], 201),
+            'https://app.sandbox.midtrans.com/snap/v1/transactions/snap-token-123/pay' => Http::response([
+                'status_code' => '201',
+                'transaction_id' => 'snap-qris-tx-001',
+                'transaction_status' => 'pending',
+                'qr_string' => '00020101021226620014COM.GO-JEK.WWW01199360091431275173900',
+                'qris_url' => 'https://merchants-app.sbx.midtrans.com/v4/qris/gopay/A120261102211524/qr-code',
+            ], 200),
+        ]);
+
+        $table = DiningTable::factory()->create(['name' => 'Meja 3']);
+        $menuItem = MenuItem::factory()->create(['price' => 25000]);
+
+        $order = app(PlaceOrder::class)->handle($table, [
+            ['menu_item_id' => $menuItem->id, 'quantity' => 1],
+        ]);
+
+        $payment = app(CreateMidtransQrisPayment::class)->handle(
+            $order->tableSession,
+            app(MidtransClient::class),
+        );
+
+        $this->assertSame(
+            '00020101021226620014COM.GO-JEK.WWW01199360091431275173900',
+            $payment->payload['qr_string'] ?? null,
+        );
+        $this->assertSame(
+            'https://merchants-app.sbx.midtrans.com/v4/qris/gopay/A120261102211524/qr-code',
+            $payment->payment_url,
+        );
+    }
+
     public function test_valid_midtrans_webhook_marks_session_and_table_paid_automatically_and_is_idempotent(): void
     {
         $table = DiningTable::factory()->create(['name' => 'Meja 5']);

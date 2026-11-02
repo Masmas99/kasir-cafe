@@ -124,5 +124,12 @@ class ManualOrderTest extends TestCase
 
         $this->assertSame(PaymentStatus::Paid, $payment->refresh()->status);
         $this->assertSame(TableStatus::Available, $table->refresh()->status);
+
+        // Paid orders must still appear in Pesanan Masuk (cashier.orders) so kitchen/cashier can prepare and serve them
+        Volt::test('cashier.orders')
+            ->assertSee('Meja 4')
+            ->assertSee('Matcha Latte')
+            ->assertSee('Lunas')
+            ->assertSee('Cetak Struk');
     }
 }

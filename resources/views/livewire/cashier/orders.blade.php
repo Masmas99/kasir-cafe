@@ -117,7 +117,15 @@ new #[Layout('layouts.app')] #[Title('Pesanan Masuk')] class extends Component
         }
 
         $orders = Order::with(['diningTable', 'tableSession', 'items'])
-            ->whereHas('tableSession', fn ($query) => $query->whereNull('closed_at'))
+            ->where(function ($query): void {
+                $query->whereDate('created_at', today())
+                    ->orWhereIn('status', [
+                        OrderStatus::Pending,
+                        OrderStatus::Processing,
+                        OrderStatus::Ready,
+                    ])
+                    ->orWhereHas('tableSession', fn ($q) => $q->whereNull('closed_at'));
+            })
             ->when($this->statusFilter !== '', fn ($query) => $query->where('status', $this->statusFilter))
             ->latest()
             ->get();
@@ -210,17 +218,39 @@ new #[Layout('layouts.app')] #[Title('Pesanan Masuk')] class extends Component
                 <x-card wire:key="cashier-order-{{ $order->id }}" class="flex flex-col p-4">
                     <div class="flex items-start justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
                         <div>
-                            <div class="flex items-center gap-2">
+                            <div class="flex flex-wrap items-center gap-2">
                                 <span class="text-base font-bold">{{ $order->diningTable->name }}</span>
                                 <span class="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium uppercase text-gray-600 dark:bg-gray-700 dark:text-gray-300">
                                     {{ $order->source }}
                                 </span>
+                                <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold {{ $order->tableSession->payment_status->badgeClasses() }}">
+                                    {{ $order->tableSession->payment_status->label() }}
+                                </span>
                             </div>
-                            <p class="text-xs text-gray-500">{{ $order->order_number }} &bull; {{ $order->created_at->format('H:i') }}</p>
+                            <p class="mt-0.5 text-xs text-gray-500">{{ $order->order_number }} &bull; {{ $order->created_at->format('H:i') }}</p>
+                            @if ($order->customer_name || $order->tableSession->customer_name)
+                                <p class="mt-1 text-xs font-medium text-gray-700 dark:text-gray-300">
+                                    Pemesan: <strong>{{ $order->customer_name ?? $order->tableSession->customer_name }}</strong>
+                                    @if ($order->customer_phone || $order->tableSession->customer_phone)
+                                        <span class="text-gray-500 dark:text-gray-400">({{ $order->customer_phone ?? $order->tableSession->customer_phone }})</span>
+                                    @endif
+                                </p>
+                            @endif
                         </div>
-                        <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $order->status->badgeClasses() }}">
-                            {{ $order->status->label() }}
-                        </span>
+                        <div class="flex flex-col items-end gap-1">
+                            <span class="rounded-full px-2.5 py-0.5 text-xs font-semibold {{ $order->status->badgeClasses() }}">
+                                {{ $order->status->label() }}
+                            </span>
+                            @if ($order->tableSession->isPaid())
+                                <a
+                                    href="{{ route('cashier.receipts.show', $order->tableSession) }}"
+                                    target="_blank"
+                                    class="text-[11px] font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                                >
+                                    Cetak Struk
+                                </a>
+                            @endif
+                        </div>
                     </div>
 
                     <ul class="my-3 flex-1 space-y-2 text-sm">
